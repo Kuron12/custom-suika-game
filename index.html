@@ -1,0 +1,664 @@
+<!DOCTYPE html><html lang="ja"><head><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カスタム画像すいかゲーム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 500px;
+            margin: 0 auto;
+            overflow: hidden;
+            border: 4px solid #5D5CDE;
+            border-bottom-width: 20px;
+            border-radius: 8px;
+        }
+        
+        #game-canvas {
+            background-color: #f5f5f5;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #next-fruit {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        
+        #score {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        
+        #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            display: none;
+        }
+        
+        .fruit-preview {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #ccc;
+        }
+        
+        .fruit-preview-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .dark #game-canvas {
+            background-color: #333;
+        }
+        
+        .dark .fruit-preview {
+            border-color: #555;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-white dark:bg-gray-900 dark:text-white transition-colors duration-300">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-6 text-primary">カスタム画像すいかゲーム</h1>
+        
+        <div class="flex flex-col lg:flex-row gap-6">
+            <!-- ゲームエリア -->
+            <div class="w-full lg:w-1/2">
+                <div id="game-container" class="mb-4">
+                    <canvas id="game-canvas"></canvas>
+                    <div id="next-fruit">次: <span id="next-fruit-name">チェリー</span></div>
+                    <div id="score">スコア: <span id="score-value">0</span></div>
+                    <div id="game-over">
+                        <h2 class="text-2xl font-bold mb-4">ゲームオーバー</h2>
+                        <p class="mb-2">スコア: <span id="final-score">0</span></p>
+                        <button id="restart-btn" class="mt-4 px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                            もう一度遊ぶ
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex justify-center gap-4 mb-6">
+                    <button id="play-btn" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                        プレイ開始
+                    </button>
+                    <button id="reset-btn" class="px-6 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                        リセット
+                    </button>
+                </div>
+                
+                <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mb-6">
+                    <h2 class="text-xl font-semibold mb-2">遊び方</h2>
+                    <ol class="list-decimal list-inside space-y-1 pl-4">
+                        <li>まず各レベルの画像をカスタマイズします</li>
+                        <li>「プレイ開始」ボタンを押してゲームを始めます</li>
+                        <li>画面をクリックして果物を落とします</li>
+                        <li>同じサイズの果物がぶつかると合体して次のサイズになります</li>
+                        <li>容器の上部に果物が溢れるとゲームオーバーです</li>
+                    </ol>
+                </div>
+            </div>
+            
+            <!-- カスタマイズエリア -->
+            <div class="w-full lg:w-1/2">
+                <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                    <h2 class="text-xl font-semibold mb-4">画像をカスタマイズ</h2>
+                    
+                    <div class="mb-4">
+                        <button id="default-images-btn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors mr-2">
+                            デフォルト画像を使う
+                        </button>
+                        <button id="save-settings-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                            設定を保存
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                        <!-- フルーツレベル1 (チェリー) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">レベル1: チェリー</p>
+                            <img id="fruit-preview-0" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2YwMCIvPjwvc3ZnPg==" alt="チェリー">
+                            <input type="file" id="fruit-upload-0" accept="image/*" class="text-xs">
+                        </div>
+                        
+                        <!-- フルーツレベル2 (イチゴ) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">レベル2: イチゴ</p>
+                            <img id="fruit-preview-1" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2YwMDAxOCIvPjwvc3ZnPg==" alt="イチゴ">
+                            <input type="file" id="fruit-upload-1" accept="image/*" class="text-xs">
+                        </div>
+                        
+                        <!-- フルーツレベル3 (ぶどう) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">レベル3: ぶどう</p>
+                            <img id="fruit-preview-2" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzZhMDA5YSIvPjwvc3ZnPg==" alt="ぶどう">
+                            <input type="file" id="fruit-upload-2" accept="image/*" class="text-xs">
+                        </div>
+                        
+                        <!-- フルーツレベル4 (オレンジ) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">レベル4: オレンジ</p>
+                            <img id="fruit-preview-3" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmODgwMCIvPjwvc3ZnPg==" alt="オレンジ">
+                            <input type="file" id="fruit-upload-3" accept="image/*" class="text-xs">
+                        </div>
+                        
+                        <!-- フルーツレベル5 (柿) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">レベル5: 柿</p>
+                            <img id="fruit-preview-4" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmNjYwMCIvPjwvc3ZnPg==" alt="柿">
+                            <input type="file" id="fruit-upload-4" accept="image/*" class="text-xs">
+                        </div>
+                        
+                        <!-- フルーツレベル6 (りんご) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">レベル6: りんご</p>
+                            <img id="fruit-preview-5" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmMDAwMCIvPjwvc3ZnPg==" alt="りんご">
+                            <input type="file" id="fruit-upload-5" accept="image/*" class="text-xs">
+                        </div>
+                        
+                        <!-- フルーツレベル7 (梨) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">レベル7: 梨</p>
+                            <img id="fruit-preview-6" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmZGIwMCIvPjwvc3ZnPg==" alt="梨">
+                            <input type="file" id="fruit-upload-6" accept="image/*" class="text-xs">
+                        </div>
+                        
+                        <!-- フルーツレベル8 (パイナップル) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">レベル8: パイナップル</p>
+                            <img id="fruit-preview-7" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmZDcwMCIvPjwvc3ZnPg==" alt="パイナップル">
+                            <input type="file" id="fruit-upload-7" accept="image/*" class="text-xs">
+                        </div>
+                        
+                        <!-- フルーツレベル9 (メロン) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">レベル9: メロン</p>
+                            <img id="fruit-preview-8" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzAwYzgwMCIvPjwvc3ZnPg==" alt="メロン">
+                            <input type="file" id="fruit-upload-8" accept="image/*" class="text-xs">
+                        </div>
+                        
+                        <!-- フルーツレベル10 (スイカ) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">レベル10: スイカ</p>
+                            <img id="fruit-preview-9" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzAwZDAwMCIvPjwvc3ZnPg==" alt="スイカ">
+                            <input type="file" id="fruit-upload-9" accept="image/*" class="text-xs">
+                        </div>
+                        
+                        <!-- フルーツレベル11 (ボーナス) -->
+                        <div class="fruit-preview-container">
+                            <p class="mb-1">ボーナスフルーツ</p>
+                            <img id="fruit-preview-10" class="fruit-preview mb-2" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmZDcwMCIgc3Ryb2tlPSIjZmYwMDAwIiBzdHJva2Utd2lkdGg9IjQiLz48L3N2Zz4=" alt="ボーナス">
+                            <input type="file" id="fruit-upload-10" accept="image/*" class="text-xs">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ダークモード検出
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // ゲーム設定
+        const FRUIT_LEVELS = 11; // 0-10のレベル
+        const FRUIT_NAMES = ['チェリー', 'イチゴ', 'ぶどう', 'オレンジ', '柿', 'りんご', '梨', 'パイナップル', 'メロン', 'スイカ', 'ボーナス'];
+        const FRUIT_SIZES = [20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]; // 直径（px）
+        
+        let fruitImages = []; // フルーツの画像URLを保存する配列
+        
+        // デフォルト画像をSVGで用意
+        const DEFAULT_IMAGES = [
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2YwMCIvPjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2YwMDAxOCIvPjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzZhMDA5YSIvPjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmODgwMCIvPjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmNjYwMCIvPjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmMDAwMCIvPjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmZGIwMCIvPjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmZDcwMCIvPjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzAwYzgwMCIvPjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzAwZDAwMCIvPjwvc3ZnPg==',
+            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iI2ZmZDcwMCIgc3Ryb2tlPSIjZmYwMDAwIiBzdHJva2Utd2lkdGg9IjQiLz48L3N2Zz4='
+        ];
+        
+        // Matter.jsモジュールの初期化
+        const Engine = Matter.Engine;
+        const Render = Matter.Render;
+        const World = Matter.World;
+        const Bodies = Matter.Bodies;
+        const Body = Matter.Body;
+        const Events = Matter.Events;
+        
+        // ゲーム変数
+        let engine;
+        let render;
+        let gameRunning = false;
+        let currentFruit = null;
+        let nextFruitLevel = 0;
+        let mouseX = 0;
+        let dropZone = { min: 80, max: 320 };
+        let score = 0;
+        let fruitsInGame = [];
+        let isGameOver = false;
+        
+        // DOM要素の取得
+        const playBtn = document.getElementById('play-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const canvas = document.getElementById('game-canvas');
+        const scoreValue = document.getElementById('score-value');
+        const nextFruitName = document.getElementById('next-fruit-name');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
+        const defaultImagesBtn = document.getElementById('default-images-btn');
+        const saveSettingsBtn = document.getElementById('save-settings-btn');
+        
+        // 画像アップロード関連の初期化
+        for (let i = 0; i < FRUIT_LEVELS; i++) {
+            const uploadInput = document.getElementById(`fruit-upload-${i}`);
+            const previewImg = document.getElementById(`fruit-preview-${i}`);
+            
+            // ローカルストレージから画像を復元
+            const savedImage = localStorage.getItem(`fruit-image-${i}`);
+            if (savedImage) {
+                previewImg.src = savedImage;
+                fruitImages[i] = savedImage;
+            } else {
+                fruitImages[i] = DEFAULT_IMAGES[i];
+            }
+            
+            // ファイルアップロードイベント
+            uploadInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = function(event) {
+                            previewImg.src = event.target.result;
+                            fruitImages[i] = event.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                }
+            });
+        }
+        
+        // デフォルト画像に戻すボタン
+        defaultImagesBtn.addEventListener('click', function() {
+            for (let i = 0; i < FRUIT_LEVELS; i++) {
+                const previewImg = document.getElementById(`fruit-preview-${i}`);
+                previewImg.src = DEFAULT_IMAGES[i];
+                fruitImages[i] = DEFAULT_IMAGES[i];
+            }
+        });
+        
+        // 設定を保存ボタン
+        saveSettingsBtn.addEventListener('click', function() {
+            for (let i = 0; i < FRUIT_LEVELS; i++) {
+                localStorage.setItem(`fruit-image-${i}`, fruitImages[i]);
+            }
+            alert('画像設定を保存しました！');
+        });
+        
+        // ゲームの初期化
+        function initGame() {
+            // Matter.jsエンジンの初期化
+            engine = Engine.create();
+            
+            // キャンバスサイズの取得
+            const containerWidth = 400;
+            const containerHeight = 500;
+            
+            // レンダラーの初期化
+            render = Render.create({
+                canvas: canvas,
+                engine: engine,
+                options: {
+                    width: containerWidth,
+                    height: containerHeight,
+                    wireframes: false,
+                    background: 'transparent',
+                    pixelRatio: window.devicePixelRatio
+                }
+            });
+            
+            // 壁を作成
+            const wallOptions = { 
+                isStatic: true,
+                render: {
+                    visible: false
+                }
+            };
+            
+            // 境界を追加（左壁、右壁、底）
+            World.add(engine.world, [
+                // 左壁
+                Bodies.rectangle(0, containerHeight/2, 20, containerHeight, wallOptions),
+                // 右壁
+                Bodies.rectangle(containerWidth, containerHeight/2, 20, containerHeight, wallOptions),
+                // 底
+                Bodies.rectangle(containerWidth/2, containerHeight, containerWidth, 20, wallOptions)
+            ]);
+            
+            // マウス移動のイベントリスナー
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+            
+            // クリック/タップでフルーツをドロップ
+            canvas.addEventListener('click', dropFruit);
+            canvas.addEventListener('touchend', dropFruit);
+            
+            // 衝突イベントのリスナー
+            Events.on(engine, 'collisionStart', handleCollision);
+            
+            // 定期的に上部オーバーフローをチェック
+            setInterval(checkGameOver, 1000);
+            
+            // エンジン実行
+            Engine.run(engine);
+            Render.run(render);
+            
+            // 次のフルーツを準備
+            prepareNextFruit();
+        }
+        
+        // マウス移動処理
+        function handleMouseMove(e) {
+            if (!gameRunning || !currentFruit) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            
+            // 範囲内に制限
+            mouseX = Math.max(dropZone.min, Math.min(mouseX, dropZone.max));
+            
+            // フルーツの位置を更新
+            Body.setPosition(currentFruit, { x: mouseX, y: 50 });
+        }
+        
+        // タッチ移動処理
+        function handleTouchMove(e) {
+            if (!gameRunning || !currentFruit) return;
+            e.preventDefault();
+            
+            if (e.touches.length > 0) {
+                const rect = canvas.getBoundingClientRect();
+                mouseX = e.touches[0].clientX - rect.left;
+                
+                // 範囲内に制限
+                mouseX = Math.max(dropZone.min, Math.min(mouseX, dropZone.max));
+                
+                // フルーツの位置を更新
+                Body.setPosition(currentFruit, { x: mouseX, y: 50 });
+            }
+        }
+        
+        // フルーツドロップ
+        function dropFruit() {
+            if (!gameRunning || !currentFruit || isGameOver) return;
+            
+            // 物理効果を有効化
+            Body.setStatic(currentFruit, false);
+            
+            // フルーツを配列に追加
+            fruitsInGame.push(currentFruit);
+            
+            // ドロップしたら次のフルーツを準備
+            setTimeout(() => {
+                prepareNextFruit();
+            }, 500);
+        }
+        
+        // 次のフルーツを準備
+        function prepareNextFruit() {
+            // ランダムなフルーツレベル（0-2）を生成
+            nextFruitLevel = Math.floor(Math.random() * 3);
+            
+            // 次のフルーツ名を表示
+            nextFruitName.textContent = FRUIT_NAMES[nextFruitLevel];
+            
+            // フルーツのサイズ
+            const radius = FRUIT_SIZES[nextFruitLevel] / 2;
+            
+            // 新しいフルーツを作成
+            currentFruit = Bodies.circle(mouseX || 200, 50, radius, {
+                restitution: 0.3,
+                friction: 0.1,
+                density: 0.001,
+                isStatic: true,
+                fruitLevel: nextFruitLevel,
+                render: {
+                    sprite: {
+                        texture: fruitImages[nextFruitLevel],
+                        xScale: radius * 2 / 100,
+                        yScale: radius * 2 / 100
+                    }
+                }
+            });
+            
+            // ワールドに追加
+            World.add(engine.world, currentFruit);
+        }
+        
+        // 衝突イベント処理
+        function handleCollision(event) {
+            if (!gameRunning || isGameOver) return;
+            
+            const pairs = event.pairs;
+            
+            for (let i = 0; i < pairs.length; i++) {
+                const bodyA = pairs[i].bodyA;
+                const bodyB = pairs[i].bodyB;
+                
+                // 同じレベルのフルーツが衝突した場合
+                if (bodyA.fruitLevel !== undefined && bodyB.fruitLevel !== undefined && 
+                    bodyA.fruitLevel === bodyB.fruitLevel && bodyA.fruitLevel < 9) {
+                    
+                    // 両方のフルーツが既に処理中でないことを確認
+                    if (bodyA.isProcessing || bodyB.isProcessing) continue;
+                    
+                    // 処理中フラグを設定
+                    bodyA.isProcessing = true;
+                    bodyB.isProcessing = true;
+                    
+                    // 新しいフルーツのレベルと位置を計算
+                    const newLevel = bodyA.fruitLevel + 1;
+                    const pos = {
+                        x: (bodyA.position.x + bodyB.position.x) / 2,
+                        y: (bodyA.position.y + bodyB.position.y) / 2
+                    };
+                    
+                    // 元のフルーツをゲーム配列から削除
+                    fruitsInGame = fruitsInGame.filter(f => f !== bodyA && f !== bodyB);
+                    
+                    // 得点を加算
+                    score += (newLevel + 1) * 2;
+                    scoreValue.textContent = score;
+                    
+                    // フルーツレベルの合体アニメーション（タイミングを少し遅らせる）
+                    setTimeout(() => {
+                        // 古いフルーツをワールドから削除
+                        World.remove(engine.world, [bodyA, bodyB]);
+                        
+                        // 新しいフルーツを作成
+                        const radius = FRUIT_SIZES[newLevel] / 2;
+                        const newFruit = Bodies.circle(pos.x, pos.y, radius, {
+                            restitution: 0.3,
+                            friction: 0.1,
+                            density: 0.001,
+                            fruitLevel: newLevel,
+                            render: {
+                                sprite: {
+                                    texture: fruitImages[newLevel],
+                                    xScale: radius * 2 / 100,
+                                    yScale: radius * 2 / 100
+                                }
+                            }
+                        });
+                        
+                        // 新しいフルーツをワールドに追加
+                        World.add(engine.world, newFruit);
+                        
+                        // 新しいフルーツをゲーム配列に追加
+                        fruitsInGame.push(newFruit);
+                        
+                        // 最高レベルのフルーツを作成したらボーナス
+                        if (newLevel === 9) {
+                            score += 100; // ボーナスポイント
+                            scoreValue.textContent = score;
+                            
+                            // ボーナスエフェクト（Optional）
+                            // ...
+                        }
+                    }, 100);
+                }
+            }
+        }
+        
+        // ゲームオーバーのチェック
+        function checkGameOver() {
+            if (!gameRunning || isGameOver) return;
+            
+            // ゲームエリアの上部境界
+            const topBoundary = 100;
+            
+            // いずれかのフルーツが上部境界より上にあるかチェック
+            const overflow = fruitsInGame.some(fruit => {
+                // 静止しているフルーツのみをチェック（落下中は除外）
+                return !fruit.isStatic && fruit.position.y < topBoundary && Math.abs(fruit.velocity.y) < 0.5;
+            });
+            
+            if (overflow) {
+                gameOver();
+            }
+        }
+        
+        // ゲームオーバー処理
+        function gameOver() {
+            isGameOver = true;
+            gameRunning = false;
+            
+            // ゲームオーバー画面を表示
+            gameOverScreen.style.display = 'flex';
+            finalScoreDisplay.textContent = score;
+        }
+        
+        // プレイボタンイベント
+        playBtn.addEventListener('click', startGame);
+        
+        // リセットボタンイベント
+        resetBtn.addEventListener('click', resetGame);
+        
+        // リスタートボタンイベント
+        restartBtn.addEventListener('click', resetGame);
+        
+        // ゲーム開始
+        function startGame() {
+            if (!gameRunning) {
+                // 初回または初期化後の場合はゲームを初期化
+                if (!engine) {
+                    initGame();
+                }
+                
+                gameRunning = true;
+                isGameOver = false;
+                
+                // UIを更新
+                playBtn.textContent = 'ゲーム中...';
+                playBtn.disabled = true;
+                gameOverScreen.style.display = 'none';
+            }
+        }
+        
+        // ゲームリセット
+        function resetGame() {
+            // ゲームが実行中ならエンジンを破棄
+            if (engine) {
+                World.clear(engine.world);
+                Engine.clear(engine);
+                Render.stop(render);
+                render = null;
+                engine = null;
+            }
+            
+            // ゲーム変数をリセット
+            gameRunning = false;
+            currentFruit = null;
+            nextFruitLevel = 0;
+            score = 0;
+            fruitsInGame = [];
+            isGameOver = false;
+            
+            // UIをリセット
+            scoreValue.textContent = '0';
+            nextFruitName.textContent = 'チェリー';
+            playBtn.textContent = 'プレイ開始';
+            playBtn.disabled = false;
+            gameOverScreen.style.display = 'none';
+            
+            // ゲームを再初期化して開始
+            initGame();
+            startGame();
+        }
+        
+        // ページ読み込み時にデフォルト画像をロード
+        window.addEventListener('load', function() {
+            // ローカルストレージから画像を復元
+            for (let i = 0; i < FRUIT_LEVELS; i++) {
+                const savedImage = localStorage.getItem(`fruit-image-${i}`);
+                if (savedImage) {
+                    document.getElementById(`fruit-preview-${i}`).src = savedImage;
+                    fruitImages[i] = savedImage;
+                } else {
+                    fruitImages[i] = DEFAULT_IMAGES[i];
+                }
+            }
+        });
+    </script>
+
+
+</body></html>
