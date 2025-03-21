@@ -311,21 +311,60 @@
                 fruitImages[i] = DEFAULT_IMAGES[i];
             }
             
-            // ファイルアップロードイベント
-            uploadInput.addEventListener('change', function(e) {
-                if (e.target.files.length > 0) {
-                    const file = e.target.files[0];
-                    if (file.type.startsWith('image/')) {
-                        const reader = new FileReader();
-                        reader.onload = function(event) {
-                            previewImg.src = event.target.result;
-                            fruitImages[i] = event.target.result;
-                        };
-                        reader.readAsDataURL(file);
-                    }
-                }
-            });
+            // ファイルアップロードイベント（修正版）
+uploadInput.addEventListener('change', function(e) {
+    if (e.target.files.length > 0) {
+        const file = e.target.files[0];
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                // 画像を円形に切り抜いてリサイズする
+                processImage(event.target.result, i, function(processedImage) {
+                    previewImg.src = processedImage;
+                    fruitImages[i] = processedImage;
+                });
+            };
+            reader.readAsDataURL(file);
         }
+    }
+});
+
+// 画像を処理して円形に切り抜く関数
+function processImage(imageUrl, level, callback) {
+    const img = new Image();
+    img.onload = function() {
+        // キャンバスを作成
+        const canvas = document.createElement('canvas');
+        // レベルに応じた適切なサイズを設定（元のFRUIT_SIZESに基づく）
+        const size = FRUIT_SIZES[level] * 1.2; // 少し余裕を持たせる
+        canvas.width = size;
+        canvas.height = size;
+        
+        const ctx = canvas.getContext('2d');
+        
+        // 円形クリッピングパスを作成
+        ctx.beginPath();
+        ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        
+        // 画像を中央に配置して描画
+        const scale = Math.min(size / img.width, size / img.height);
+        const x = (size - img.width * scale) / 2;
+        const y = (size - img.height * scale) / 2;
+        
+        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+        
+        // 円の境界を描画（オプション）
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // 処理した画像をコールバックに渡す
+        callback(canvas.toDataURL('image/png'));
+    };
+    img.src = imageUrl;
+}
         
         // デフォルト画像に戻すボタン
         defaultImagesBtn.addEventListener('click', function() {
